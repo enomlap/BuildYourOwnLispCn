@@ -13,3 +13,6 @@
 - 阅读地址：https://ksco.gitbooks.io/build-your-own-lisp/
 - 项目主页：[BuildYourOwnLispCn](https://github.com/ksco/BuildYourOwnLispCn)
 - 共享协议：[CC BY-NC-SA 3.0](http://creativecommons.org/licenses/by-nc-sa/3.0/)
+
+### 第11章-第16章：enomlap（ttfans_at_163）
+- 阅读地址：https://github.com/enomlap/BuildYourOwnLispCn/
