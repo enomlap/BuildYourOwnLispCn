@@ -16,3 +16,5 @@
 
 ### 第11章-第16章：enomlap（ttfans_at_163）
 - 阅读地址：https://github.com/enomlap/BuildYourOwnLispCn/
+- 另外，我翻译之后我才发现已经有人翻译过一部分了（第13-16章）：https://www.abnerchou.me/BuildYourOwnLispCn/
+- 真是一个令人悲伤的故事！原先到处找也没有找到。
