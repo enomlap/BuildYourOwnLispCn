@@ -341,15 +341,17 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
     lval_add(lval_sexpr(), lval_copy(f->body)));
 }
 ```
-But this doesn't act correctly when the number of arguments supplied, and the number of formal arguments differ. In this situation it will crash.看起来不错，但是当提供的参数数量和形式参数的数量不同时， 它会崩溃! 
 
-Actually this is an interesting case, and leaves us a couple of options实际上，这是一个有趣的案例，给我们留下了几个选项。 .可以仅仅`throw（抛出）`一个错误，提示提供的参数计数不正确。 We could just throw an error when the argument count supplied is incorrect, but we can do something that is more fun也可以做得更好玩些， 当提供的参数太少时，可以仅绑定函数的前几个形式参数，其余的不绑定。 When too few arguments are supplied we could instead bind the first few formal arguments of the function and then return it, leaving the rest unbound.
+看起来不错，但是当提供的参数数量与形式参数的数量不同时， 它会崩溃! 
 
-This creates a function that has been partially evaluated and reflects our previous idea of a function being some kind of partial computation这创建了一个*部分计算*的函数，和我们之前将函数当作*部分计算的*代码思想一致。. If we start with a function that takes two arguments, and pass in a single argument, we can bind this first argument and return a new function with its first formal argument bound, and its second remaining empty.假如某个函数接受两个参数但仅传入了一个，那就绑定第一个，然后返回一个新函数（译注：颠覆了C语言中关于函数的认识）。 
+实际上，这是一个有趣的案例，给我们留下了几个选项。可以仅仅 `throw（抛出）` 一个错误，提示提供的参数计数不正确，也可以做得更好玩些。当提供的参数太少时，可以仅绑定函数的前几个形式参数，其余的不绑定。
 
-This metaphor creates a cute image of how functions work. We can imagine a function at the front of an expression, repeatedly consuming inputs directly to its right. After consuming the first input to its right, if it is full (requires no more inputs), it evaluates and replaces itself with some new value. If instead, it is still it still requires more, it replaces itself with another, more complete function, with one of its variables bound. This process repeats until the final value for the program is created.打个比方说，当一个函数面对表达式时，不断地吃掉右侧的输入。在吃进其右侧的第一个输入后，如果它吃饱了（不需要更多输入），它就求值并用新值替换自己（译注：雷电战机吃了足够的五星变身超级战机，或者大个马立奥）。 假如没吃饱， 就能绑定一个是一个，然后用另一个更完整的函数替换自己（译注：没吃到足够的五星还没能变身）。
+这创建了一个 *部分计算* 的函数，和我们之前将函数当作 *部分计算的* 代码思想一致。假如某个函数接受两个参数但仅传入了一个，那就绑定第一个，然后返回一个新函数（译注：颠覆了 C 语言中关于函数的认识）。 
 
-So you can imagine functions like a little Pac-Man, not consuming all inputs at once, but iteratively eating inputs to the right, getting bigger and bigger until it is full and explodes to create something new. This isn't actually how we're going to implement it in code, but it is still fun to imagine.想象一下吃豆人小游戏，不是一口吃掉所有豆子，而是一个一个吃，越来越大，直到它吃饱然后爆炸变身。代码中并不是这样实现，不过也差不多有趣。 
+打个比方说，当一个函数面对表达式时，不断地吃掉右侧的输入。在吃进其右侧的第一个输入后，如果它吃饱了（不需要更多输入），它就求值并用新值替换自己（译注：类似雷电战机吃了足够的五星变身超级战机，或者大个子马立奥）。假如没吃饱， 就能绑定一个是一个，然后用另一个更完整的函数替换自己（译注：没吃到足够的五星还没能变身）。
+
+想象一下吃豆人小游戏，不是一口吃掉所有豆子，而是一个一个吃，越来越大，直到它吃饱然后爆炸变身。代码中并不是这样实现，不过也差不多有趣。
+
 ```
 lval* lval_call(lenv* e, lval* f, lval* a) {
 
@@ -402,9 +404,11 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
 
 }
 ```
-The above function does exactly as we explained, with correct error handling added in too.上面的函数与我们所说的完全一样，此外，还添加了正确的错误处理。 First it iterates over the passed in arguments attempting to place each one in the environment. 它先遍历每一个传入的参数，并尝试将每个参数放入环境中。 Then it checks if the environment is full,然后它检查一下环境中参数是否已满 and if so evaluates, otherwise returns a copy of itself with some arguments filled.如果是，就进行求值，否则的话返回一个携带一些参数的自身的拷贝。
 
-If we update our evaluation function lval_eval_sexpr to call lval_call, we can give our new system a spin.如果我们用 `lval_call`调用更新后的求值函数 `lval_eval_sexpr`，新系统应该可以运转了。
+上面的函数与我们所说的完全一样，此外，还添加了正确的错误处理。它先遍历每一个传入的参数，并尝试将每个参数放入环境中。然后它检查一下环境中参数是否已满，如果是，就进行求值，否则的话返回一个携带一些参数的自身的拷贝。
+
+如果我们用 `lval_call`调用更新后的求值函数 `lval_eval_sexpr`，新系统应该可以运转了。
+
 ```
 lval* f = lval_pop(v, 0);
 if (f->type != LVAL_FUN) {
@@ -419,7 +423,7 @@ if (f->type != LVAL_FUN) {
 lval* result = lval_call(e, f, v);
 ```
 
-Try defining some functions and test out how partial evaluation works.尝试自己定义函数并试试部分评估。 
+尝试自己定义函数并试试部分求值。 
 
 ```
 lispy> def {add-mul} (\ {x y} {+ x (* x y)})
@@ -434,16 +438,18 @@ lispy> add-mul-ten 50
 510
 lispy>
 ```
-## 可变参数 Variable Arguments
+## 可变参数
+
 ------
-We've defined some of our builtin functions so they can take in a variable number of arguments.我们已经定义了一些内置函数，因此它们可以接受可变数量的参数。 Functions like + and join can take any number of arguments, and operate on them logically.逻辑上，函数`+`和 `join`可以接受任意数量的参数。 We should find a way to let user defined functions work on multiple arguments also.我们应该寻求某种办法以便用户定义函数也能这样。
 
-Unfortunately there isn't an elegant way for us to allow for this, without adding in some special syntax. So we're going to hard-code some system into our language using a special symbol &.不幸的是，除非添加一些特殊的语法，否则并没有什么优雅的方式能够实现。  既然这样只能使用特殊符号`&`来点硬核编码了. 
-We are going to let users define formal arguments that look like {x & xs}, which means that a function will take in a single argument x, followed by zero or more other arguments, joined together into a list called xs. This is a bit like the ellipsis we used to declare variable arguments in C.先把形式参数改成 `{x & xs}`的形式，表示一个函数可以接受一个参数 `x`，后跟一个列表 `xs`，其中`xs`包含零个或多个其他参数，，类似于 C语言 中用于声明可变参数的省略号。 
+我们已经定义了一些内置函数，因此它们可以接受可变数量的参数。逻辑上，函数 `+` 和 `join` 可以接受任意数量的参数。我们应该寻求某种办法以便用户定义函数也能这样。
 
-When assigning our formal arguments 在给形式参数赋值时，查找是否存在 `&`符号，若存在，则将剩余参数都分配给这个形式参数。we're going to look for a & symbol and if it exists take the next formal argument and assign it any remaining supplied arguments we've been passed. 必须将此参数列表转换为 Q-Expression（译注：否则会被求值）。It's important we convert this argument list to a Q-Expression. 记住，`&`后面须跟着一个真正的符号，否则应该抛出一个错误。We need to also remember to check that & is followed by a real symbol, and if it isn't we should throw an error.
+不幸的是，除非添加一些特殊的语法，否则并没有什么优雅的方式能够实现。既然这样只能使用特殊符号`&`来点硬核编码了。先把形式参数改成 `{x & xs}` 的形式，表示一个函数可以接受一个参数 `x` ，后跟一个列表 `xs` ，其中 `xs` 包含零个或多个其他参数，类似于 C 语言中用于声明可变参数的省略号。 
 
-当第一个符号从形参中弹出后，立即在`lval_call`的`while`循环 加入这段特殊代码。Just after the first symbol is popped from the formals in the while loop of lval_call we can add this special case.
+在给形式参数赋值时，查找是否存在 `&` 符号，若存在，则将剩余参数都分配给这个形式参数。必须将此参数列表转换为 Q-Expression（译注：否则会被求值）。记住，`&` 后面须跟着一个真正的符号，否则应该抛出一个错误。
+
+当第一个符号从形参中弹出后，立即在 `lval_call` 的 `while` 循环里加入这段特殊代码。
+
 ```
 /* Special Case to deal with '&' */
 if (strcmp(sym->sym, "&") == 0) {
@@ -462,8 +468,8 @@ if (strcmp(sym->sym, "&") == 0) {
   break;
 }
 ```
-Suppose when calling the function the user doesn't supply any variable arguments, but only the first named ones. In this case we need to set the symbol following & to the empty list. Just after we delete the argument list, and before we check to see if all the formals have been evaluated, add in this special case.
-假设在调用函数时未提供可变参数，而只提供了第一个参数。  在此情形下，需要将符号 `&`置为空表。  在删除参数列表之后，检查是否所有形参都已经示值之前，添加处理这个特殊情况的代码。 
+
+假设在调用函数时未提供可变参数，而只提供了第一个参数。在此情形下，需要将符号 `&` 置为空表。在删除参数列表之后，检查是否所有形参都已经示值之前，添加处理这个特殊情况的代码。 
 
 ```
 /* If '&' remains in formal list bind to empty list */
@@ -487,22 +493,28 @@ if (f->formals->count > 0 &&
   lenv_put(f->env, sym, val);
   lval_del(sym); lval_del(val);
 }
-## 有趣的函数 Interesting Functions
+
+## 有趣的函数
+
 ------
+
 ### 函数定义 Function Definition
 
-很显然Lambda语法是定义函数的一种简单而强大的方法。 Lambdas are clearly a simple and powerful way of defining functions. 不过因为有太多的括号和符号，总归看起来有点笨But the syntax is a little clumsy. There are a lot of brackets and symbols involved. 尝试使用一些更简单的语法编写一个定义函数本身的函数，也许更有意思Here is an interesting idea. We can try to write a function that defines a function itself, using some simpler syntax.
+很显然Lambda语法是定义函数的一种简单而强大的方法。不过因为有太多的括号和符号，总归看起来有点笨。尝试使用一些更简单的语法编写一个定义函数本身的函数，也许更有意思
 
-本质上我们只是想要一个可以一次性完成两个步骤的函数。Essentially what we want is a function that can perform two steps at once. 首先它应该能够创建一个新函数，然后将此函数定义为某个名称。First it should create a new function, and then it should define it to some name. 有个巧办法，Here is the trick.让用户在一个列表中提供名称和形式参数，We let the user supply the name and the formal arguments altogether in one list, 然后分开，并用于函数定义中。 and then separate these out for them, and use them in the definition. Here is a function that does that函数如下. 此函数接受参数和函数体作为输入。It takes as input some arguments and some body. 以参数头作为函数名称，其余部分作为形式参数，函数体则直接传递给 lambda。It takes the head of the arguments to be the function name and the rest to be the formal arguments. It passes the body directly to a lambda.
+本质上我们只是想要一个可以一次性完成两个步骤的函数。首先它应该能够创建一个新函数，然后将此函数定义为某个名称。有个巧办法，让用户在一个列表中提供名称和形式参数，然后分开，并用于函数定义中。函数如下。此函数接受参数和函数体作为输入。以参数头作为函数名称，其余部分作为形式参数，函数体则直接传递给 lambda。
+
 ```
 \ {args body} {def (head args) (\ (tail args) body)}
 ```
-我们可以照常将这个函数命名为 `fun`，并将其传递给 `def`。 We can name this function something like fun by passing it to def as usual.
+
+我们可以照常将这个函数命名为 `fun`，并将其传递给 `def`。
+
 ```
 def {fun} (\ {args body} {def (head args) (\ (tail args) body)})
 ```
-This means that we can now define functions in a much simpler and nicer way. To define our previously mentioned add-together we can do the following. Functions that can define functions. That is certainly something we could never do in C. How cool is that!
-如此定义函数更简单方便了。  定义之前的 `add-together`函数如下所示，在 C语言 中可能永远也做不到，这可真是太酷了！ 
+
+如此定义函数更简单方便了。  定义之前的 `add-together`函数如下所示，可以用函数来定义函数。在 C语言 中可能永远也做不到，这可真是太酷了！ 
 
 ```
 fun {add-together x y} {+ x y}
@@ -512,24 +524,27 @@ fun {add-together x y} {+ x y}
 
 柯里化 • 不像听起来那么好。 Currying • Not as good as it sounds.
 
-### 柯里化 Currying
+### 柯里化（Currying）
 
-目前像 `+`这类函数可以接受可变数量的参数At the moment functions like + take a variable number of arguments. 某些情况下的确不错，但是如果传递的参数本身就是一个列表呢？似乎难以处理。In some situations that's great, but what if we had a list of arguments we wished to pass to it. In this situation it is rendered somewhat useless.
+目前像 `+`这类函数可以接受可变数量的参数，某些情况下的确不错，但是如果传递的参数本身就是一个列表呢？似乎难以处理。
 
-再次创建一个函数来解决这个特例。  Again we can try to create a function to solve this problem. 如果以期望的格式创建一个列表，就可以使用 `eval`来处理。If we can create a list in the format we wish to use for our expression we can use eval to treat it as such. 对于 `+`可以将此函数附加到列表的前面，然后进行求值。 In the situation of + we could append this function to the front of the list and then perform the evaluation.
+再次创建一个函数来解决这个特例。如果以期望的格式创建一个列表，就可以使用 `eval` 来处理。对于 `+` 可以将此函数附加到列表的前面，然后进行求值。
 
-We can define a function unpack that does this. It takes as input some function and some list and appends the function to the front of the list, before evaluating it.可以定义一个 `unpack`函数来做这事。  它接受一些函数和一些列表作为输入，并在求值之前将该函数附加到列表的前面。 
+可以定义一个 `unpack`函数来做这事。它接受一些函数和一些列表作为输入，并在求值之前将该函数附加到列表的前面。 
+
 ```
 fun {unpack f xs} {eval (join (list f) xs)}
 ```
-
  
-在某些情况下，可能会面临相反的困境。In some situations we might be faced with the opposite dilemma. 有可能有一个将某个列表作为输入的函数，但我们希望使用可变参数来调用它。We may have a function that takes as input some list, but we wish to call it using variable arguments. 在这种情况下，解决方案其实更简单一些。In this case the solution is even simpler. We use the fact that our & syntax for variable arguments packs up variable arguments into a list for us.可以使用`&`变量参数语法将变量参数打包成一个列表。
+在某些情况下，可能会面临相反的困境。有可能有一个将某个列表作为输入的函数，但我们希望使用可变参数来调用它。在这种情况下，解决方案其实更简单一些。可以使用 `&` 变量参数语法将变量参数打包成一个列表。
 
+```
 fun {pack f & xs} {f xs}
+```
 
-在某些语言中，这分别被称为 *柯里化* 和 *非柯里化* 。 这其实来源于*Haskell语言的 Curry*而与我们喜欢的辣味毫无关系。In some languages this is called currying and uncurrying respectively. This is named after Haskell Curry and unfortunately has nothing to do with our favourite spicy food.
+在某些语言中，这分别被称为 *柯里化* 和 *非柯里化* 。这其实来源于 *Haskell语言的 Curry* 而与我们喜欢的辣味毫无关系。
 
+```
 lispy> def {uncurry} pack
 ()
 lispy> def {curry} unpack
@@ -538,9 +553,11 @@ lispy> curry + {5 6 7}
 18
 lispy> uncurry head 5 6 7
 {5}
-由于部分求值的特性，我们不需要考虑用特定的参数化进行 *柯里*（译注：不懂什么意思） 。 可以想见函数自己的 *柯里化* 或 *非柯里化*的形式。 
-Because of the way our partial evaluation works we don't need to think of currying with a specific set of arguments. We can think of functions themselves being in curried or uncurried form.
+```
 
+由于部分求值的特性，我们不需要考虑用特定的参数化进行 *柯里*（译注：不懂什么意思）。可以想见函数自己的 *柯里化* 或 *非柯里化* 的形式。
+
+```
 lispy> def {add-uncurried} +
 ()
 lispy> def {add-curried} (curry +)
@@ -549,13 +566,13 @@ lispy> add-curried {5 6 7}
 18
 lispy> add-uncurried 5 6 7
 18
-玩耍一下，看看还能想出什么有趣或者强大（有趣和强大常想伴随）的功能。  下一章，将添加条件语法，这会使我们的语言更加完备。  但这并不意味着你现在不能实现一些有趣的事。  我们的 Lisp 越来越丰富了。 
+```
 
+玩耍一下，看看还能想出什么有趣或者强大（有趣和强大常想伴随）的功能。  下一章，将添加条件语法，这会使我们的语言更加完备。但这并不意味着你现在不能实现一些有趣的事。我们的 Lisp 越来越丰富了。 
 
-Have a play around and see what other interesting and powerful functions you can try to come up with. In the next chapter we'll add conditionals which will really start to make our language more complete. But that doesn't mean you won't be able to come up with some other interesting ideas. Our Lisp is getting richer.
 ## 参考 Reference
 functions.c
-
+```
 #include "mpc.h"
 
 #ifdef _WIN32
@@ -1311,22 +1328,15 @@ int main(int argc, char** argv) {
   
   return 0;
 }
-## 彩蛋 Bonus Marks
+```
+
+## 课后练习
 
 ------
 
-- › 定义一个 Lisp 函数，它返回列表中的第一个元素。 Define a Lisp function that returns the first element from a list.
-- › 定义一个 Lisp 函数，它返回列表中的第二个元素。 Define a Lisp function that returns the second element from a list.
-- › 定义一个 Lisp 函数，该函数以相反的顺序调用带有两个参数的函数。 Define a Lisp function that calls a function with two arguments in reverse order.
-- › 定义一个 Lisp 函数，它调用一个带参数的函数，然后将结果传递给另一个函数。 Define a Lisp function that calls a function with arguments, then passes the result to another function.
-- › 定义一个 `builtin_fun`函数，相当于 Lisp 中的 `fun`函数。 Define a builtin_fun C function that is equivalent to the Lisp fun function.
-- › 更改变量参数，以便在评估之前必须至少提供一个额外参数。 Change variable arguments so at least one extra argument must be supplied before it is evaluated.
-
-## 导航 
-
-Navigation
-‹ Variables
-	
-• Contents •
-	
-Conditionals ›
+- 定义一个 Lisp 函数，它返回列表中的第一个元素。
+- 定义一个 Lisp 函数，它返回列表中的第二个元素。
+- 定义一个 Lisp 函数，该函数以相反的顺序调用带有两个参数的函数。
+- 定义一个 Lisp 函数，它调用一个带参数的函数，然后将结果传递给另一个函数。
+- 定义一个 `builtin_fun`函数，相当于 Lisp 中的 `fun`函数。
+- 更改变量参数，以便在求值之前必须至少提供一个参数。
