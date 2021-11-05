@@ -15,7 +15,7 @@
 - 项目主页：[BuildYourOwnLispCn](https://github.com/ksco/BuildYourOwnLispCn)
 - 共享协议：[CC BY-NC-SA 3.0](http://creativecommons.org/licenses/by-nc-sa/3.0/)
 
-### 第11章-第16章：enomlap（ttfans_at_163）
+### 第11章-第16章：enomlap（tt7fans_at_163_dot_com）
 - 阅读地址：https://github.com/enomlap/BuildYourOwnLispCn/
 - 共享协议：翻译工作在保留译者信息的情况下无额外限制。
 
