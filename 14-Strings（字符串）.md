@@ -20,7 +20,7 @@
 
 与其他章节一样，我们首先添加一个条目，并使用`lval`来表示类型的数据。 
 
-```
+```c
 enum { LVAL_ERR, LVAL_NUM,   LVAL_SYM, LVAL_STR,
        LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };
 /* Basic */
@@ -32,7 +32,7 @@ char* str;
 
 接下来我们可以添加一个构造字符串型 `lval`的函数，这很类似于我们构造符号的方式。 
 
-```
+```c
 lval* lval_str(char* s) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_STR;
@@ -46,26 +46,26 @@ lval* lval_str(char* s) {
 
  **删除** ... 
 
-```
+```c
 case LVAL_STR: free(v->str); break;
 ```
 
  **复制** ... 
 
-```
+```c
 case LVAL_STR: x->str = malloc(strlen(v->str) + 1);
   strcpy(x->str, v->str); break;
 ```
 
 判断 **相等** ... 
 
-```
+```c
 case LVAL_STR: return (strcmp(x->str, y->str) == 0);
 ```
 
 处理 **类型名称** ... 
 
-```
+```c
 case LVAL_STR: return "String";
 ```
 
@@ -75,13 +75,13 @@ case LVAL_STR: return "String";
 
 在打印功能中，我们添加以下内容... 
 
-```
+```c
 case LVAL_STR:   lval_print_str(v); break;
 ```
 
 位置：... 
 
-```
+```c
 void lval_print_str(lval* v) {
   /* Make a Copy of the string */
   char* escaped = malloc(strlen(v->str)+1);
@@ -103,7 +103,7 @@ void lval_print_str(lval* v) {
 
 我们将要使用的字符串表达规则与 C 语言的相同。  就是说，字符串本质上是两个引号之间的一系列转义字符或普通字符 `""`.  我们可以将其指定为语法字符串中的正则表达式，如下所示。 
 
-```
+```c
 string  : /\"(\\\\.|[^\"])*\"/ ;
 ```
 
@@ -111,13 +111,13 @@ string  : /\"(\\\\.|[^\"])*\"/ ;
 
 在 `lval_read`还需要添加对应的代码。 
 
-```
+```c
 if (strstr(t->tag, "string")) { return lval_read_str(t); }
 ```
 
 由于输入字符串是以转义形式输入的，所以我们需要创建一个函数 `lval_read_str`处理。  这个函数稍稍棘手，首先它要去掉两头的 `"`。  然后它要对字符串进行转义，转换一系列字符，例如 `\n`到他们的实际编码字符。  最后它创建一个新的 `lval`并清理中间产生的垃圾（译注：小心处理，当心内存泄露）。 
 
-```
+```c
 lval* lval_read_str(mpc_ast_t* t) {
   /* Cut off the final quote character */
   t->contents[strlen(t->contents)-1] = '\0';
@@ -136,7 +136,7 @@ lval* lval_read_str(mpc_ast_t* t) {
 
 如果这一切正常，我们应该能够在提示中使用字符串了。  接下来，我们将添加一些有实际作用函数了。 
 
-```
+```lisp
 lispy> "hello"
 "hello"
 lispy> "hello\n"
@@ -152,30 +152,20 @@ lispy>
 
 ## 注释 
 
-------
+    任何语言总需要包含注释。就像C语言一样，我们可以使用注释来告知其他人（或我们自己）代码的含义或编写代码的原因。 C语言中， "/*"和"*/"之间的部分被认为是注释。Lisp中，每行以"; "开始的直到行尾的部分是注释。
 
+    我曾试图研究一下为什么 Lisps 使用 ";" 来作为注释的开头，但由于历史的原因，根本搞不清楚。我猜想这可能是对C和Java语言的一个小小的调侃：这些语言使用分号来表示语句的结束，而在 Lisp 看来，“你们太小儿科了，这些就像注释一样没用”。
 
-While we're building in new syntax to the language we may as well look at comments.
-任何语言总需要包含注释。就像C语言一样，我们可以使用注释来告知其他人（或我们自己）代码的含义或编写代码的原因。 C语言中， "/*"和"*/"之间的部分被认为是注释。Lisp中，每行以"; "开始的直到行尾的部分是注释。
-
-Just like in C, we can use comments in inform other people (or  ourselves) about what the code is meant to do or why it has been  written. In C comments go between `/*` and `*/`. Lisp comments, on the other hand, start with `;` and run to the end of the line.
-
-I attempted to research why Lisps use `;` for comments,  but it appears that the origins of this have been lost in the mists of  time. I imagine it as a small rebellion against the imperative languages such as C and Java which use semicolons so shamelessly and frequently  to separate/terminate statements. Compared to Lisp all these languages  are just comments.
-
-我曾试图研究一下为什么 Lisps 使用 ";" 来作为注释的开头，但由于历史的原因，根本搞不清楚。我猜想这可能是对C和Java语言的一个小小的调侃：这些语言使用分号来表示语句的结束，而在 Lisp 看来，“你们太小儿科了，这些就像注释一样没用”。
-So in lisp a comment is defined by a semicolon `;` followed by any number of characters that are not newline characters represented by either `\r` or `\n`. We can use another regex to define it.
-在lisp中，由 `lisp`开头直到行末尾（`\r` 或者 `\n`）的部分都是注释，用正则表达式可以这样表示：
-```
+    在lisp中，由 `lisp`开头直到行末尾（`\r` 或者 `\n`）的部分都是注释，用正则表达式可以这样表示：
+```c
 comment : /;[^\\r\\n]*/ ;
 ```
 
-As with strings we need to create a new parser and use this to update our language in `mpca_lang`. We also need to remember to add the parser to `mpc_cleanup`, and update the first integer argument to reflect the new number of parsers passed in.
+    与字符串一样，我们也需要创建一个新的解析器，并在 `mpca_lang` 中更新。别忘了将解析器添加到"mpc_cleanup"中，并更新第一个整数参数。
 
-与字符串一样，我们也需要创建一个新的解析器，并在"mpca_lang"中更新。别忘了将解析器添加到"mpc_cleanup"中，并更新第一个整数参数。
+    最后的语法现在看起来像这样。
 
-最后的语法现在看起来像这样。
-Our final grammar now looks like this.
-```
+```c
 mpca_lang(MPCA_LANG_DEFAULT,
   "                                              \
     number  : /-?[0-9]+/ ;                       \
@@ -190,28 +180,26 @@ mpca_lang(MPCA_LANG_DEFAULT,
   ",
   Number, Symbol, String, Comment, Sexpr, Qexpr, Expr, Lispy);
 ```
-
-And the cleanup function looks like this.
-清理函数：
-```
+    清理函数：
+```c
 mpc_cleanup(8,
   Number, Symbol, String, Comment,
   Sexpr,  Qexpr,  Expr,   Lispy);
 ```
 
-由于注释仅仅是供程序员阅读的，所以内部实现的方法仅仅是`忽略`而已。  类似于中括号和圆括号，我们可以添加如下的语句来处理， `lval_read`. 
-```
+    由于注释仅仅是供程序员阅读的，所以内部实现的方法仅仅是 `忽略` 而已。类似于中括号和圆括号，我们可以添加如下的语句来处理， `lval_read`.... 
+```c
 if (strstr(t->children[i]->tag, "comment")) { continue; }
 ```
-注释在交互式提示上没有多大用处，但在代码文件中进行注释非常必要。 
+    注释在交互式提示上没有多大用处，但在代码文件中进行注释非常必要。 
 
 ## 加载函数 
 
-我们想要构建一个函数，当传递文件名称的字符串时，该函数可以加载和并对文件内容求值。  为了实现这个函数，我们需要使用我们的语法来实现读取文件、解析和求值。  加载函数将依赖于我们的 Lispy可调用元素`mpc_parser*`. 
+    我们想要构建一个函数，当传递文件名称的字符串时，该函数可以加载和并对文件内容求值。为了实现这个函数，我们需要使用我们的语法来实现读取文件、解析和求值。加载函数将依赖于我们的 Lispy可调用元素`mpc_parser*`. 
 
-因此，和函数一样，需要前置声明解析器指针，并将它们放在文件的开头部分。 
+    因此，和函数一样，需要前置声明解析器指针，并将它们放在文件的开头部分。 
 
-```
+```c
 mpc_parser_t* Number;
 mpc_parser_t* Symbol;
 mpc_parser_t* String;
@@ -222,13 +210,13 @@ mpc_parser_t* Expr;
 mpc_parser_t* Lispy;
 ```
 
- `load`函数将就像任何其他内置函数一样，首先确认输入参数是否是一个字符串。  然后使用 `mpc_parse_contents`使用语法树解析 文件内容。和 `mpc_parse`类似，将文件的内容解析为`mpc_result`对象，即 *抽象语法树* 或者返回 *错误* 。 
+    `load`函数将就像任何其他内置函数一样，首先确认输入参数是否是一个字符串。  然后使用 `mpc_parse_contents`使用语法树解析 文件内容。和 `mpc_parse`类似，将文件的内容解析为`mpc_result`对象，即 *抽象语法树* 或者返回 *错误* 。 
 
-与命令提示符略有不同，在成功解析文件后，我们不应将其视为单个表达式。在输入文件时，我们让用户列出多个表达式并分别对所有表达式求值。  这就需要遍历文件内容中的每个表达式并一一求值。  如果没有任何错误，我们就打印错结果后继续。 
+    与命令提示符略有不同，在成功解析文件后，我们不应将其视为单个表达式。在输入文件时，我们让用户列出多个表达式并分别对所有表达式求值。  这就需要遍历文件内容中的每个表达式并一一求值。  如果没有任何错误，我们就打印错结果后继续。 
 
-如果解析错误，就把消息放入`lval`型的错误报告并返回。  没有错误的话这个内置函数就返回一个空表达式。  完整代码如下。 
+    如果解析错误，就把消息放入 `lval` 型的错误报告并返回。没有错误的话这个内置函数就返回一个空表达式。完整代码如下 ... 
 
-```
+```c
 lval* builtin_load(lenv* e, lval* a) {
   LASSERT_NUM("load", a, 1);
   LASSERT_TYPE("load", a, 0, LVAL_STR);
@@ -274,15 +262,13 @@ lval* builtin_load(lenv* e, lval* a) {
 
 ## 命令行参数 
 
-------
+    有了加载文件的能力，我们就可以借此机会添加一些编程语言都有的典型功能。当文件名作为参数提供给命令行时，我们可以尝试运行这些文件。例如运行一个 python 文件，一个人可能会写 `python filename.py`. 
 
-有了加载文件的能力，我们就可以借此机会添加一些编程语言都有的典型功能。  当文件名作为参数提供给命令行时，我们可以尝试运行这些文件。  例如运行一个 python 文件，一个人可能会写 `python filename.py`. 
+    这些命令行参数由 `main`函数的 `argc`和 `argv`变量访问。`argc`变量给出参数的数量，和 `argv` 指向参数字符串数组。这 `argc` 至少为1，因为第一个参数永远是调用的命令本身。 
 
-这些命令行参数由 `main`函数的 `argc`和 `argv`变量访问.   `argc`变量给出参数的数量，和 `argv`指向参数字符串数组。  这 `argc`至少为1，因为第一个参数永远是调用的命令本身。 
+    也就是说，如果 `argc`是`1`，就仅仅调用解释器给出一个提示符，否则的话，通过 `builtin_load`函数执行脚本文件（译注：这语言越加越像个真的语言了）。 
 
-也就是说，如果 `argc`是`1`，就仅仅调用解释器给出一个提示符，否则的话，通过 `builtin_load`函数执行脚本文件（译注：这语言越加越像个真的语言了）。 
-
-```
+```c
 /* Supplied with list of files */
 if (argc >= 2) {
 
@@ -310,13 +296,11 @@ lispy example.lspy
 
 ## 打印功能 
 
-------
+    如果我们从命令行运行程序，我们可能希望它们输出一些数据，而不仅仅是定义函数和其他值。利用我们现有的 `lval_print` 功能我们可以在我们的 Lisp添加一个 `print`函数。 
 
-如果我们从命令行运行程序，我们可能希望它们输出一些数据，而不仅仅是定义函数和其他值。  利用我们现有的 `lval_print`功能我们可以在我们的 Lisp添加一个 `print`函数。 
+    此函数打印由空格分隔的每个参数，然后打印一个换行符以结束。返回值是个空表达式。 
 
-此函数打印由空格分隔的每个参数，然后打印一个换行符以结束。  返回值是个空表达式。 
-
-```
+```c
 lval* builtin_print(lenv* e, lval* a) {
 
   /* Print each argument followed by a space */
@@ -334,11 +318,9 @@ lval* builtin_print(lenv* e, lval* a) {
 
 ## 错误函数 
 
-------
+    可以利用字符串来为错误报告添加功能。  它接受一个字符串作为输入，并将其作为错误消息提供给 `lval_err`. 
 
-可以利用字符串来为错误报告添加功能。  它接受一个字符串作为输入，并将其作为错误消息提供给 `lval_err`. 
-
-```
+```c
 lval* builtin_error(lenv* e, lval* a) {
   LASSERT_NUM("error", a, 1);
   LASSERT_TYPE("error", a, 0, LVAL_STR);
@@ -352,13 +334,15 @@ lval* builtin_error(lenv* e, lval* a) {
 }
 ```
 
-最后一步是将这些注册为内置函数。  现在可以开始构建库并将它们写入文件了。 
+    最后一步是将这些注册为内置函数。  现在可以开始构建库并将它们写入文件了。 
 
-```
+```c
 /* String Functions */
 lenv_add_builtin(e, "load",  builtin_load);
 lenv_add_builtin(e, "error", builtin_error);
 lenv_add_builtin(e, "print", builtin_print);
+```
+```lisp
 lispy> print "Hello World!"
 "Hello World!"
 ()
@@ -370,15 +354,13 @@ lispy> load "hello.lspy"
 lispy>
 ```
 
-## 总结 
+## 总结
 
-------
+    这是最后一章了，我们使用C语言一行一行的实现了一个自己的 Lisp 。 
 
-这是最后一章了，我们使用C语言一行一行的实现了一个自己的 Lisp 。 
+    总行数大约有1000 行。   编写这么多代码并非易事。  如果您已经做到了这一点，那么您就已经编写了一个真正的程序并完成了一个不错的项目。你在这里学到的技能当然可以用于其它工作，让你有信心去寻找自己的目标和目标。  您已经拥有了一个复杂而漂亮的程序，您可以与之互动和玩耍。   这是你应该引以为豪的事情。  去向你的朋友和家人炫耀吧！ 
 
-总行数大约有1000 行。   编写这么多代码并非易事。  如果您已经做到了这一点，那么您就已经编写了一个真正的程序并完成了一个不错的项目。你在这里学到的技能当然可以用于其它工作，让你有信心去寻找自己的目标和目标。  您已经拥有了一个复杂而漂亮的程序，您可以与之互动和玩耍。   这是你应该引以为豪的事情。  去向你的朋友和家人炫耀吧！ 
-
-下一章，我们将用 Lisp 来构建一些常用函数的标准库。  然后，我还会提示你一些这个语言需要改进的地方和之后的发展方向。  虽然再往后我不会再参与了，但这真的只是开始。  感谢您的关注，祝您将来编写的任何 C 语言都好运！ 
+    下一章，我们将用 Lisp 来构建一些常用函数的标准库。  然后，我还会提示你一些这个语言需要改进的地方和之后的发展方向。  虽然再往后我不会再参与了，但这真的只是开始。  感谢您的关注，祝您将来编写的任何 C 语言都好运！ 
 
 ## 参考 
 
@@ -386,7 +368,7 @@ lispy>
 
 ####         [           字符串.c          ](https://www.buildyourownlisp.com/chapter14_strings#collapseOne) 
 完成的string.c版本：     
-```
+```c
 #include "mpc.h"
 
 #ifdef _WIN32
@@ -1347,9 +1329,3 @@ int main(int argc, char** argv) {
 - › 创建一个内置函数 `show`可以按原样打印字符串的内容（未转义）。 
 - › 创造特殊值 `ok`返回以替代空表达式 `()`. 
 - › 添加函数来包装所有 C 的文件处理函数，例如 `fopen`和 `fgets`. 
-
-## 导航 
-
-| [‹ 条件句 ](https://www.buildyourownlisp.com/chapter13_conditionals) | [• 内容 • ](https://www.buildyourownlisp.com/contents) | [标准库 › ](https://www.buildyourownlisp.com/chapter15_standard_library) |
-| ------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------ |
-|                                                              |                                                        |                                                              |
