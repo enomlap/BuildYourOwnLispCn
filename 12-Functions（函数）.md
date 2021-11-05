@@ -27,25 +27,25 @@
 
 目前先将这个函数简单的称为 `\`，就是一个斜杠，（向 Lambda 微积分致敬，它看起来像是小写的Lambda字母）。 像下面这样就可以创建一个加法函数了：
 
-```
+```lisp
 \ {x y} {+ x y}
 ```
 
 我们可以通过将其作为普通 S 表达式中的第一个参数来调用该函数：
 
-```
+```lisp
 (\ {x y} {+ x y}) 10 20
 ```
 
 也可以像命名普通变量一样使用内置函数 `def`给这个函数命名，并同时保存在环境中。
 
-```
+```lisp
 def {add-together} (\ {x y} {+ x y})
 ```
 
 然后我们可以用它的名字来调用 了：
 
-```
+```lisp
 add-together 10 20
 ```
 
@@ -56,7 +56,7 @@ add-together 10 20
 
 同样可以使用类型 `LVAL_FUN` 来存储内置函数和用户函数。不过，这样的话我们需要一个内在的办法来区分它们。我们可以通过检测内置函数指针 `lbuiltin` 是否为 `NULL` 来区分。如果不是 `NULL` ，我们就知道这是一个内置函数，反之则是一个用户函数。
 
-```
+```c
 struct lval {
   int type;
 
@@ -81,7 +81,7 @@ struct lval {
 
 还需要创建一个构造函数用于用户定义 `lval` 函数。这里我们为函数创建一个新的 `环境` ，并且用输入的内容给形参和函数体赋值。
 
-```
+```c
 lval* lval_lambda(lval* formals, lval* body) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_FUN;
@@ -102,7 +102,7 @@ lval* lval_lambda(lval* formals, lval* body) {
 就像每次改变的 `lval`的类型时一样，我们也需要更新一下 *删除* 、 *复制* 和 *打印* 的功能。不过对于 *求值* ，我们需要更深入地研究。 
 对于 **删除** ...
 
-```
+```c
 case LVAL_FUN:
   if (!v->builtin) {
     lenv_del(v->env);
@@ -114,7 +114,7 @@ break;
 
 对于 **复制** ...
 
-```
+```c
 case LVAL_FUN:
   if (v->builtin) {
     x->builtin = v->builtin;
@@ -129,7 +129,7 @@ break;
 
 用于 **打印** ...
 
-```
+```c
 case LVAL_FUN:
   if (v->builtin) {
     printf("<builtin>");
@@ -146,7 +146,7 @@ break;
 
 现在可以为 `lambda` 函数添加一个内置函数。我们希望它接收一些符号列表和一个表示代码的列表作为输入，之后它应该返回一个函数 `lval` 。我们现在已经定义了一些内置函数，这里将遵循相同的格式。和 `def` 一样，还需要（使用一些新定义的宏）做错误检查以确保参数类型和数目正确。然后我们从列表中弹出前两个参数并将它们传递给我们之前定义的函数 `lval_lambda` ...
 
-```
+```c
 lval* builtin_lambda(lenv* e, lval* a) {
   /* Check Two arguments, each of which are Q-Expressions */
   LASSERT_NUM("\\", a, 2);
@@ -175,7 +175,7 @@ lval* builtin_lambda(lenv* e, lval* a) {
 
 如果您正打算自己完成此任务，现在正是好时机。不过，您也可以参考本章中我所采用的代码，并将其集成到你自己的代码中。 我们把这个函数和其它内置函数一起注册一下...
 
-```
+```c
 lenv_add_builtin(e, "\\", builtin_lambda);
 ```
 
@@ -194,7 +194,7 @@ lenv_add_builtin(e, "\\", builtin_lambda);
 
 构造函数只需稍稍改动即可 ...
 
-```
+```c
 struct lenv {
   lenv* par;
   int count;
@@ -214,7 +214,7 @@ lenv* lenv_new(void) {
 
 取值时如果找不到值，需要遍历搜索父环境 ...
 
-```
+```c
 lval* lenv_get(lenv* e, lval* k) {
 
   for (int i = 0; i < e->count; i++) {
@@ -234,7 +234,7 @@ lval* lenv_get(lenv* e, lval* k) {
 
 由于更新了 `lval`类型，用于复制环境的函数也要更新 ...
 
-```
+```c
 lenv* lenv_copy(lenv* e) {
   lenv* n = malloc(sizeof(lenv));
   n->par = e->par;
@@ -254,7 +254,7 @@ lenv* lenv_copy(lenv* e) {
 
 目前有两种方法可以定义变量：或者在本地环境中定义，或者在全局部环境中定义。我们分别处理。`lenv_put` 方法不需要改变，依然可用于在本地环境中进行定义。不过需要一个新的函数 `lenv_def` 用于在全局环境中定义变量。这也很简单，只需要在使用 `lenv_put` 之前依照父链找到上一层环境就行了。
 
-```
+```c
 void lenv_def(lenv* e, lval* k, lval* v) {
   /* Iterate till e has no parent */
   while (e->par) { e = e->par; }
@@ -267,7 +267,7 @@ void lenv_def(lenv* e, lval* k, lval* v) {
 
 随后需要将这些注册为内置函数 ...
 
-```
+```c
 lenv_add_builtin(e, "def", builtin_def);
 lenv_add_builtin(e, "=",   builtin_put);
 
@@ -320,7 +320,8 @@ lval* builtin_var(lenv* e, lval* a, char* func) {
 如果这个函数类型是内置函数，我们可以像以前一样使用函数指针调用它。但对于用户定义函数还有额外的麻烦。我们需要将传入的每个参数分别绑定到 `formals`形参。 完成后就可以在`env`环境中对 `body`部分进行求值了，而当前环境作为这个环境的父环境。
 
 这是没加错误检查的第一次的尝试：
-```
+
+```c
 lval* lval_call(lenv* e, lval* f, lval* a) {
 
   /* If Builtin then simply call that */
@@ -352,7 +353,7 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
 
 想象一下吃豆人小游戏，不是一口吃掉所有豆子，而是一个一个吃，越来越大，直到它吃饱然后爆炸变身。代码中并不是这样实现，不过也差不多有趣。
 
-```
+```c
 lval* lval_call(lenv* e, lval* f, lval* a) {
 
   /* If Builtin then simply apply that */
@@ -409,7 +410,7 @@ lval* lval_call(lenv* e, lval* f, lval* a) {
 
 如果我们用 `lval_call`调用更新后的求值函数 `lval_eval_sexpr`，新系统应该可以运转了。
 
-```
+```c
 lval* f = lval_pop(v, 0);
 if (f->type != LVAL_FUN) {
   lval* err = lval_err(
@@ -425,7 +426,7 @@ lval* result = lval_call(e, f, v);
 
 尝试自己定义函数并试试部分求值。 
 
-```
+```lisp
 lispy> def {add-mul} (\ {x y} {+ x (* x y)})
 ()
 lispy> add-mul 10 20
@@ -450,7 +451,7 @@ lispy>
 
 当第一个符号从形参中弹出后，立即在 `lval_call` 的 `while` 循环里加入这段特殊代码。
 
-```
+```c
 /* Special Case to deal with '&' */
 if (strcmp(sym->sym, "&") == 0) {
 
@@ -471,7 +472,7 @@ if (strcmp(sym->sym, "&") == 0) {
 
 假设在调用函数时未提供可变参数，而只提供了第一个参数。在此情形下，需要将符号 `&` 置为空表。在删除参数列表之后，检查是否所有形参都已经示值之前，添加处理这个特殊情况的代码。 
 
-```
+```c
 /* If '&' remains in formal list bind to empty list */
 if (f->formals->count > 0 &&
   strcmp(f->formals->cell[0]->sym, "&") == 0) {
@@ -493,6 +494,7 @@ if (f->formals->count > 0 &&
   lenv_put(f->env, sym, val);
   lval_del(sym); lval_del(val);
 }
+```
 
 ## 有趣的函数
 
@@ -504,19 +506,19 @@ if (f->formals->count > 0 &&
 
 本质上我们只是想要一个可以一次性完成两个步骤的函数。首先它应该能够创建一个新函数，然后将此函数定义为某个名称。有个巧办法，让用户在一个列表中提供名称和形式参数，然后分开，并用于函数定义中。函数如下。此函数接受参数和函数体作为输入。以参数头作为函数名称，其余部分作为形式参数，函数体则直接传递给 lambda。
 
-```
+```lisp
 \ {args body} {def (head args) (\ (tail args) body)}
 ```
 
 我们可以照常将这个函数命名为 `fun`，并将其传递给 `def`。
 
-```
+```lisp
 def {fun} (\ {args body} {def (head args) (\ (tail args) body)})
 ```
 
 如此定义函数更简单方便了。  定义之前的 `add-together`函数如下所示，可以用函数来定义函数。在 C语言 中可能永远也做不到，这可真是太酷了！ 
 
-```
+```lisp
 fun {add-together x y} {+ x y}
 ```
 
@@ -532,19 +534,19 @@ fun {add-together x y} {+ x y}
 
 可以定义一个 `unpack`函数来做这事。它接受一些函数和一些列表作为输入，并在求值之前将该函数附加到列表的前面。 
 
-```
+```lisp
 fun {unpack f xs} {eval (join (list f) xs)}
 ```
  
 在某些情况下，可能会面临相反的困境。有可能有一个将某个列表作为输入的函数，但我们希望使用可变参数来调用它。在这种情况下，解决方案其实更简单一些。可以使用 `&` 变量参数语法将变量参数打包成一个列表。
 
-```
+```lisp
 fun {pack f & xs} {f xs}
 ```
 
 在某些语言中，这分别被称为 *柯里化* 和 *非柯里化* 。这其实来源于 *Haskell语言的 Curry* 而与我们喜欢的辣味毫无关系。
 
-```
+```lisp
 lispy> def {uncurry} pack
 ()
 lispy> def {curry} unpack
@@ -557,7 +559,7 @@ lispy> uncurry head 5 6 7
 
 由于部分求值的特性，我们不需要考虑用特定的参数化进行 *柯里*（译注：不懂什么意思）。可以想见函数自己的 *柯里化* 或 *非柯里化* 的形式。
 
-```
+```lisp
 lispy> def {add-uncurried} +
 ()
 lispy> def {add-curried} (curry +)
@@ -572,7 +574,7 @@ lispy> add-uncurried 5 6 7
 
 ## 参考 Reference
 functions.c
-```
+```c
 #include "mpc.h"
 
 #ifdef _WIN32
