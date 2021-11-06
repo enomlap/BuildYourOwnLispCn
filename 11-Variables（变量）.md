@@ -27,7 +27,7 @@
 
 这个规则除了可以匹配C语言里面允许的`a-zA-Z0-9_`字符之外，另外还可以匹配数学运算符号加减乘除‘+’、‘-’、‘*’、‘/’，还有斜杠‘\’，当然这需要用四个斜杠`\\\\`来表示（第一个、第三个`\`是C语言里面的，用来转义其后的`\`，这样总共给正则表达式提供了两个`\`，正则表达式中，第一个`\`用来转意第二个`\`，这样算来总共其实就简单的匹配一个`\`），这样就能匹配`a-zA-Z0-9_` 和计算符号`+\\-*\\/` 以及`\\\\`，比较符`=<>!`或者`and`符号`&`。这样在定义的时候更加灵活（译注：一百万条腿的LISP大象真不是盖的）。
 
-```
+```c
 mpca_lang(MPCA_LANG_DEFAULT,
   "                                                     \
     number : /-?[0-9]+/ ;                               \
@@ -54,7 +54,7 @@ mpca_lang(MPCA_LANG_DEFAULT,
 
 在之前的章节里面我们的内建函数使用一个`lval`类型参数作为输入并且返回一个`lval`类型值。在这一章里我们的函数将额外需要一个指向环境的`lenv`型的指针作为输入。我们可以声明一个新的函数指针，其类型定为`lbuiltin`：
 
-```
+```c
 typedef lval*(*lbuiltin)(lenv*, lval*);
 ```
 
@@ -73,7 +73,7 @@ The `lbuiltin` type references the `lval` type and the `lenv` type. This means t
 But we want to make a `lbuiltin` field in our `lval` struct so we can create function values. So therefore our `lbuiltin` declaration must go before our `lval` declaration. This leads to what is called a cyclic type dependency, where two types depend on each other.
 We've come across this problem before with functions which depend on each other. The solution was to create a *forward declaration* which declared a function but left the body of it empty.
 In C we can do exactly the same with types. First we declare two `struct` types without a body. Secondly we typedef these to the names `lval` and `lenv`. Then we can define our `lbuiltin` function pointer type. And finally we can define the body of our `lval` struct. Now all our type issues are resolved and the compiler won't complain any more.
-```
+```c
 /* Forward Declarations 前置定义*/
 struct lval;
 struct lenv;
@@ -98,7 +98,7 @@ struct lval {/*lval的实际定义*/
 
 ------
 我们新定义的`lval`类型在内部加入了一个枚举类型`LVAL_FUN`。其它相应的部分也要更新以便能够处理这个新的类型。多数情况下仅需要在switch部分加入相应的case判断机制就行了。现在可以为这个新类型制作一个构建函数了：
-```
+```c
 lval* lval_fun(lbuiltin func) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_FUN;
@@ -108,19 +108,19 @@ lval* lval_fun(lbuiltin func) {
 ```
 在**deleting**中无须对函数指针做任何特别的处理。
 
-```
+```c
 case LVAL_FUN: break;
 ```
 
 在**printing**中我们仅打印一串普通的字符就行。
 
-```
+```c
 case LVAL_FUN:   printf("<function>"); break;
 ```
 
 此外我们再把对`lval`的**拷贝**功能加上，以便用它来把东西从环境中放入、取出。对于数字和函数，我们只需要直接拷贝相应域即可。对于字符串，需要用到`malloc`和`strcpy`以免内存泄漏。拷贝列表时需要单独为每个成员申请合适大小的空间。
 
-```
+```c
 lval* lval_copy(lval* v) {
   lval* x = malloc(sizeof(lval));
   x->type = v->type;
@@ -157,7 +157,7 @@ lval* lval_copy(lval* v) {
 
 我们已经前置声明了`lenv`结构，只需要再加上下面的部分就可以了。
 
-```
+```c
 struct lenv {
   int count;
   char** syms;
@@ -167,7 +167,7 @@ struct lenv {
 
 我们还需要几个函数用来生成和销毁这个结构才行。这很简单，创建的时候初始化相应的域，而销毁的时候需要把所有的项目释放（译注：千万注意，因为C语言是没有垃圾回收机制的，处理不好很容易内存泄漏）。
 
-```
+```c
 lenv* lenv_new(void) {
   lenv* e = malloc(sizeof(lenv));
   e->count = 0;
@@ -193,7 +193,7 @@ void lenv_del(lenv* e) {
 往环境中存入新值的函数要复杂一点，首先要检查一下有没有相同标识的变量已经存在。如果是，就拿新值代替，通过遍历所有已存在的变量的变量名就可以了。如果存在，那就把它的值删掉，然后存入新的输入值。
 如果找不到重名的，就申请一块内存来放它，在此情况下可以用`realloc`函数重新申请内存，然后把`lval`类型的值以及名字复制进去。
 
-```
+```c
 lval* lenv_get(lenv* e, lval* k) {
   /* Iterate over all items in environment */
   for (int i = 0; i < e->count; i++) {
@@ -235,7 +235,7 @@ void lenv_put(lenv* e, lval* k, lval* v) {
 
 现在，求值函数变复杂了，因为求值的时候是环境相关的。所以还必须把指向环境的指针一起传递给函数。记住，我们的环境只是返回一个值的拷贝，所以别忘了还需要额外删除输入的`lval`型标记。
 
-```
+```c
 lval* lval_eval(lenv* e, lval* v) {
   if (v->type == LVAL_SYM) {
     lval* x = lenv_get(e, v);
@@ -249,7 +249,7 @@ lval* lval_eval(lenv* e, lval* v) {
 
 由于我们增加了函数类型，所以S表达式的求值部分也需要做相应的修改。事先要确保这是函数型而不是标志类型。如果这个条件满足的话就可以通过这个`lval`的`fun` 成员，像调用普通函数一样调用了。
 
-```
+```c
 lval* lval_eval_sexpr(lenv* e, lval* v) {
   for (int i = 0; i < v->count; i++) {
     v->cell[i] = lval_eval(e, v->cell[i]);
@@ -279,7 +279,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
 
 作为一个例子，我们可以使用`builtin_in`函数分别定义几个数学函数。
 
-```
+```c
 lval* builtin_add(lenv* e, lval* a) {
   return builtin_op(e, a, "+");
 }
@@ -297,7 +297,7 @@ lval* builtin_div(lenv* e, lval* a) {
 一旦我们把内置函数类型改好了我们就可以创建一个函数，用来把我们所有的内置函数注册到环境中。对于每一个内置函数我们想要根据给定的名字分别创建一个`lval`函数和一个 `lval`标记，然后使用`lenv_put`注册到环境中。环境总是接收、返回*值的拷贝*，所以别忘了在注册完成后不再需要它们的时候额外删除这两个`lval`。
 
 如果我们把这个任务分解成两个功能我们就可以简洁地注册环境的所有内置函数了。
-```
+```c
 void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
   lval* k = lval_sym(name);
   lval* v = lval_fun(func);
@@ -321,7 +321,7 @@ void lenv_add_builtins(lenv* e) {
 
 最后一步是在创建交互之前调用一下这个函数。再提示一下，不要忘记使用完毕时销毁环境。
 
-```
+```c
 lenv* e = lenv_new();
 lenv_add_builtins(e);
 while (1) {
@@ -369,7 +369,7 @@ lispy>
 
 这个函数行为应与其它的内置函数相似T。首先需要检查错误成立条件，然后执行一些命令，再返回。这种情况下它需要先检查输入参数是否是正确的类型。然后遍历每一个标记和值，放入环境。如果出现错误，那么就返回错误，如果一切正常的话就返回一个空表达式`()`。
 
-```
+```c
 lval* builtin_def(lenv* e, lval* a) {
   LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
     "Function 'def' passed incorrect type!");
@@ -394,7 +394,7 @@ lval* builtin_def(lenv* e, lval* a) {
 ```
 我们需要把这个新的内置函数用内置函数`lenv_add_builtins`注册一下（译注：可以看出，用户定义函数与内置函数地位相同）。
 
-```
+```c
 /* Variable Functions */
 lenv_add_builtin(e, "def",  builtin_def);
 ```
@@ -426,27 +426,26 @@ lispy> list a b x y
 {1 2 3 4}
 lispy>
 ```
-## 错误报告机制Error Reporting
+## 错误报告机制
 ------
 目前为止，我们错误报告机制还不怎么样。虽然当错误发生时，的确已经可以报告错误，但是只能给出一个模糊的提示，并不能给出更多的关于错误如何发生的信息。比如说如果发生标志未绑定错误时，我们应该能够报精确告哪个标志未被绑定。这将有助于用于追踪错误、输入失误以及其它琐碎的问题。
 ![eclipses](http://buildyourownlisp.com/static/img/eclipses.png)
 
-月食• 省略号Eclipses • Like ellipsis.
+月食• 省略号
 
 如果我们写一个函数可以像`printf`一样报告错误和其它的问题，那肯定棒极了。能够接受字符串、整数和其它类型的数据丰富错误信息肯定很理想。C语言中的`printf`是一个很特殊的函数，它就可以接受可变数量的参数。依照它我们也可以创建我们自己的*可变参数*函数，用于改善我们的这个错误报告机制。
 
 让我们来改造一下`lval_err`让它有与`printf`相似的功能：接受一个格式化字符串，之后接受可变数量的参数用于匹配前面的格式字符串。
 创建过程要使用到省略号`...`，它用来代表不定数量的参数（译注：这个机制绝大多数普通C语言教程都没有说过！很酷，对不对？）。
 
-```
+```c
 lval* lval_err(char* fmt, ...);
 ```
 
-能这么做的原因是，在函数内部有一些标准函数可以用来确定调用者提供了什么参数（译注：C语言还是相当强大）。第一步是创建`va_list`结构并将其初始化为 `va_start`，传给最末的命名参数。
-The first step is to create a `va_list` struct and initialise it with `va_start`, passing in the last named argument. 出于其它的目的，检查每一个用`va_arg`传入的参数也是有可能的，不过我们打算将参数变量列表做为一个整体直接传给`vsnprintf`函数。这个函数表现的如同`printf`函数，不同的是它接受一个`va_list`并写入到一个字符串中 。准备好了变量参数之后就可以调用`va_end`来清理已用的资源。这个`vsnprintf`函数输出到一个字符串，因此提前应该申请好内存。但由于事先无法知道它的大小，我们就只能先申请`512`字节用着，定下大小输出完毕之后再换成小一点的合适大小。 若有错误信息长度大于512字符，这里就直接砍掉了，希望这种事不会发生吧。
+能这么做的原因是，在函数内部有一些标准函数可以用来确定调用者提供了什么参数（译注：C语言还是相当强大）。第一步是创建`va_list`结构并将其初始化为 `va_start`，传给最末的命名参数。出于其它的目的，检查每一个用`va_arg`传入的参数也是有可能的，不过我们打算将参数变量列表做为一个整体直接传给`vsnprintf`函数。这个函数表现的如同`printf`函数，不同的是它接受一个`va_list`并写入到一个字符串中 。准备好了变量参数之后就可以调用`va_end`来清理已用的资源。这个`vsnprintf`函数输出到一个字符串，因此提前应该申请好内存。但由于事先无法知道它的大小，我们就只能先申请`512`字节用着，定下大小输出完毕之后再换成小一点的合适大小。 若有错误信息长度大于512字符，这里就直接砍掉了，希望这种事不会发生吧。
 
 综上，如下是新的错误处理函数：
-```
+```c
 lval* lval_err(char* fmt, ...) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_ERR;
@@ -466,17 +465,17 @@ lval* lval_err(char* fmt, ...) {
 ```
 错误报告函数看起来不错，例如`lenv_get`，假如某个标志找不着，我们能够报告标志的名字，而不仅仅是笼统地提示一个错误。
 
-```
+```c
 return lval_err("Unbound Symbol '%s'", k->sym);
 ```
 
 还可以改造一下我们的`LASSERT`宏（译注：不定参数宏的改造，此为高阶用法），让它也能够接受可变参数。由于这是一个宏而不是一个标准函数，做法些有不同（译注：简直大有不同）。在定义的左边我们继续使用省略符号，不过在右边我们得用一个特殊变量`__VA_ARGS__`，用来粘贴（paste in）所有剩余参数的内容。
 
-这个特殊变量打头必须是两个丼号符`##`，以确保当再没有其它参数时，它被正确的粘过来了（译注：对的，宏的调用是解析部分（CPP）的事，与函数调用完全不同，原文此处使用`pasted`）This ensures that it is pasted correctly when the macro is passed no extra arguments. 本质上这么做只是为了确认删除起首的逗号`,`这样才能确认没有遗漏。
+这个特殊变量打头必须是两个丼号符`##`，以确保当再没有其它参数时，它被正确的粘过来了（译注：对的，宏的调用是解析部分（CPP）的事，与函数调用完全不同，原文此处使用`pasted`）。本质上这么做只是为了确认删除起首的逗号`,`这样才能确认没有遗漏。
 
 由于在构建错误信息的时候也许会使用`args`所以我们还得确保在生成错误值之前不要删除它。
 
-```
+```c
 #define LASSERT(args, cond, fmt, ...) \
   if (!(cond)) { \
     lval* err = lval_err(fmt, ##__VA_ARGS__); \
@@ -487,7 +486,7 @@ return lval_err("Unbound Symbol '%s'", k->sym);
 
 这下就可以更新错误提示来显示更多信息了。举例来说如果错误数量的参数被传进来我们就可以确定我们需要多少个而实际传来了多少个（译注：这肯定挺有用的，这么高级的功能我从来没有使用过）。
 
-```
+```c
 LASSERT(a, a->count == 1,
   "Function 'head' passed too many arguments. "
   "Got %i, Expected %i.",
@@ -495,7 +494,7 @@ LASSERT(a, a->count == 1,
 ```
 还能把类型错误提示再改进一下，报告函数需要什么类型而实际得到了什么类型。在此之前还要写一个函数，这个函数接收某个类型的参数并返回代表这种类型名称的字符串。
 
-```
+```c
 char* ltype_name(int t) {
   switch(t) {
     case LVAL_FUN: return "Function";
@@ -524,5 +523,621 @@ lispy>
 
 ------
 #### [variables.c](http://buildyourownlisp.com/chapter11_variables#collapseOne)
-## Bonus Marks
+```c
+#include "mpc.h"
 
+#ifdef _WIN32
+
+static char buffer[2048];
+
+char* readline(char* prompt) {
+  fputs(prompt, stdout);
+  fgets(buffer, 2048, stdin);
+  char* cpy = malloc(strlen(buffer)+1);
+  strcpy(cpy, buffer);
+  cpy[strlen(cpy)-1] = '\0';
+  return cpy;
+}
+
+void add_history(char* unused) {}
+
+#else
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
+/* Forward Declarations */
+
+struct lval;
+struct lenv;
+typedef struct lval lval;
+typedef struct lenv lenv;
+
+/* Lisp Value */
+
+enum { LVAL_ERR, LVAL_NUM,   LVAL_SYM, 
+       LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };
+
+typedef lval*(*lbuiltin)(lenv*, lval*);
+
+struct lval {
+  int type;
+  long num;
+  char* err;
+  char* sym;
+  lbuiltin fun;
+  int count;
+  lval** cell;
+};
+
+lval* lval_num(long x) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_NUM;
+  v->num = x;
+  return v;
+}
+
+lval* lval_err(char* fmt, ...) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_ERR;
+  
+  /* Create a va list and initialize it */
+  va_list va;
+  va_start(va, fmt);
+  
+  /* Allocate 512 bytes of space */
+  v->err = malloc(512);
+  
+  /* printf the error string with a maximum of 511 characters */
+  vsnprintf(v->err, 511, fmt, va);
+  
+  /* Reallocate to number of bytes actually used */
+  v->err = realloc(v->err, strlen(v->err)+1);
+  
+  /* Cleanup our va list */
+  va_end(va);
+  
+  return v;
+}
+
+lval* lval_sym(char* s) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_SYM;
+  v->sym = malloc(strlen(s) + 1);
+  strcpy(v->sym, s);
+  return v;
+}
+
+lval* lval_fun(lbuiltin func) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_FUN;
+  v->fun = func;
+  return v;
+}
+
+lval* lval_sexpr(void) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_SEXPR;
+  v->count = 0;
+  v->cell = NULL;
+  return v;
+}
+
+lval* lval_qexpr(void) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_QEXPR;
+  v->count = 0;
+  v->cell = NULL;
+  return v;
+}
+
+void lval_del(lval* v) {
+
+  switch (v->type) {
+    case LVAL_NUM: break;
+    case LVAL_FUN: break;
+    case LVAL_ERR: free(v->err); break;
+    case LVAL_SYM: free(v->sym); break;
+    case LVAL_QEXPR:
+    case LVAL_SEXPR:
+      for (int i = 0; i < v->count; i++) {
+        lval_del(v->cell[i]);
+      }
+      free(v->cell);
+    break;
+  }
+  
+  free(v);
+}
+
+lval* lval_copy(lval* v) {
+
+  lval* x = malloc(sizeof(lval));
+  x->type = v->type;
+  
+  switch (v->type) {
+    
+    /* Copy Functions and Numbers Directly */
+    case LVAL_FUN: x->fun = v->fun; break;
+    case LVAL_NUM: x->num = v->num; break;
+    
+    /* Copy Strings using malloc and strcpy */
+    case LVAL_ERR:
+      x->err = malloc(strlen(v->err) + 1);
+      strcpy(x->err, v->err); break;
+      
+    case LVAL_SYM:
+      x->sym = malloc(strlen(v->sym) + 1);
+      strcpy(x->sym, v->sym); break;
+    
+    /* Copy Lists by copying each sub-expression */
+    case LVAL_SEXPR:
+    case LVAL_QEXPR:
+      x->count = v->count;
+      x->cell = malloc(sizeof(lval*) * x->count);
+      for (int i = 0; i < x->count; i++) {
+        x->cell[i] = lval_copy(v->cell[i]);
+      }
+    break;
+  }
+  
+  return x;
+}
+
+lval* lval_add(lval* v, lval* x) {
+  v->count++;
+  v->cell = realloc(v->cell, sizeof(lval*) * v->count);
+  v->cell[v->count-1] = x;
+  return v;
+}
+
+lval* lval_join(lval* x, lval* y) {  
+  for (int i = 0; i < y->count; i++) {
+    x = lval_add(x, y->cell[i]);
+  }
+  free(y->cell);
+  free(y);  
+  return x;
+}
+
+lval* lval_pop(lval* v, int i) {
+  lval* x = v->cell[i];  
+  memmove(&v->cell[i], &v->cell[i+1],
+    sizeof(lval*) * (v->count-i-1));  
+  v->count--;  
+  v->cell = realloc(v->cell, sizeof(lval*) * v->count);
+  return x;
+}
+
+lval* lval_take(lval* v, int i) {
+  lval* x = lval_pop(v, i);
+  lval_del(v);
+  return x;
+}
+
+void lval_print(lval* v);
+
+void lval_print_expr(lval* v, char open, char close) {
+  putchar(open);
+  for (int i = 0; i < v->count; i++) {
+    lval_print(v->cell[i]);    
+    if (i != (v->count-1)) {
+      putchar(' ');
+    }
+  }
+  putchar(close);
+}
+
+void lval_print(lval* v) {
+  switch (v->type) {
+    case LVAL_FUN:   printf("<function>"); break;
+    case LVAL_NUM:   printf("%li", v->num); break;
+    case LVAL_ERR:   printf("Error: %s", v->err); break;
+    case LVAL_SYM:   printf("%s", v->sym); break;
+    case LVAL_SEXPR: lval_print_expr(v, '(', ')'); break;
+    case LVAL_QEXPR: lval_print_expr(v, '{', '}'); break;
+  }
+}
+
+void lval_println(lval* v) { lval_print(v); putchar('\n'); }
+
+char* ltype_name(int t) {
+  switch(t) {
+    case LVAL_FUN: return "Function";
+    case LVAL_NUM: return "Number";
+    case LVAL_ERR: return "Error";
+    case LVAL_SYM: return "Symbol";
+    case LVAL_SEXPR: return "S-Expression";
+    case LVAL_QEXPR: return "Q-Expression";
+    default: return "Unknown";
+  }
+}
+
+/* Lisp Environment */
+
+struct lenv {
+  int count;
+  char** syms;
+  lval** vals;
+};
+
+lenv* lenv_new(void) {
+
+  /* Initialize struct */
+  lenv* e = malloc(sizeof(lenv));
+  e->count = 0;
+  e->syms = NULL;
+  e->vals = NULL;
+  return e;
+  
+}
+
+void lenv_del(lenv* e) {
+  
+  /* Iterate over all items in environment deleting them */
+  for (int i = 0; i < e->count; i++) {
+    free(e->syms[i]);
+    lval_del(e->vals[i]);
+  }
+  
+  /* Free allocated memory for lists */
+  free(e->syms);
+  free(e->vals);
+  free(e);
+}
+
+lval* lenv_get(lenv* e, lval* k) {
+  
+  /* Iterate over all items in environment */
+  for (int i = 0; i < e->count; i++) {
+    /* Check if the stored string matches the symbol string */
+    /* If it does, return a copy of the value */
+    if (strcmp(e->syms[i], k->sym) == 0) {
+      return lval_copy(e->vals[i]);
+    }
+  }
+  /* If no symbol found return error */
+  return lval_err("Unbound Symbol '%s'", k->sym);
+}
+
+void lenv_put(lenv* e, lval* k, lval* v) {
+  
+  /* Iterate over all items in environment */
+  /* This is to see if variable already exists */
+  for (int i = 0; i < e->count; i++) {
+  
+    /* If variable is found delete item at that position */
+    /* And replace with variable supplied by user */
+    if (strcmp(e->syms[i], k->sym) == 0) {
+      lval_del(e->vals[i]);
+      e->vals[i] = lval_copy(v);
+      return;
+    }
+  }
+  
+  /* If no existing entry found allocate space for new entry */
+  e->count++;
+  e->vals = realloc(e->vals, sizeof(lval*) * e->count);
+  e->syms = realloc(e->syms, sizeof(char*) * e->count);
+  
+  /* Copy contents of lval and symbol string into new location */
+  e->vals[e->count-1] = lval_copy(v);
+  e->syms[e->count-1] = malloc(strlen(k->sym)+1);
+  strcpy(e->syms[e->count-1], k->sym);
+}
+
+/* Builtins */
+
+#define LASSERT(args, cond, fmt, ...) \
+  if (!(cond)) { lval* err = lval_err(fmt, ##__VA_ARGS__); lval_del(args); return err; }
+
+#define LASSERT_TYPE(func, args, index, expect) \
+  LASSERT(args, args->cell[index]->type == expect, \
+    "Function '%s' passed incorrect type for argument %i. Got %s, Expected %s.", \
+    func, index, ltype_name(args->cell[index]->type), ltype_name(expect))
+
+#define LASSERT_NUM(func, args, num) \
+  LASSERT(args, args->count == num, \
+    "Function '%s' passed incorrect number of arguments. Got %i, Expected %i.", \
+    func, args->count, num)
+
+#define LASSERT_NOT_EMPTY(func, args, index) \
+  LASSERT(args, args->cell[index]->count != 0, \
+    "Function '%s' passed {} for argument %i.", func, index);
+
+
+lval* lval_eval(lenv* e, lval* v);
+
+lval* builtin_list(lenv* e, lval* a) {
+  a->type = LVAL_QEXPR;
+  return a;
+}
+
+lval* builtin_head(lenv* e, lval* a) {
+  LASSERT_NUM("head", a, 1);
+  LASSERT_TYPE("head", a, 0, LVAL_QEXPR);
+  LASSERT_NOT_EMPTY("head", a, 0);
+  
+  lval* v = lval_take(a, 0);  
+  while (v->count > 1) { lval_del(lval_pop(v, 1)); }
+  return v;
+}
+
+lval* builtin_tail(lenv* e, lval* a) {
+  LASSERT_NUM("tail", a, 1);
+  LASSERT_TYPE("tail", a, 0, LVAL_QEXPR);
+  LASSERT_NOT_EMPTY("tail", a, 0);
+
+  lval* v = lval_take(a, 0);  
+  lval_del(lval_pop(v, 0));
+  return v;
+}
+
+lval* builtin_eval(lenv* e, lval* a) {
+  LASSERT_NUM("eval", a, 1);
+  LASSERT_TYPE("eval", a, 0, LVAL_QEXPR);
+  
+  lval* x = lval_take(a, 0);
+  x->type = LVAL_SEXPR;
+  return lval_eval(e, x);
+}
+
+lval* builtin_join(lenv* e, lval* a) {
+  
+  for (int i = 0; i < a->count; i++) {
+    LASSERT_TYPE("join", a, i, LVAL_QEXPR);
+  }
+  
+  lval* x = lval_pop(a, 0);
+  
+  while (a->count) {
+    lval* y = lval_pop(a, 0);
+    x = lval_join(x, y);
+  }
+  
+  lval_del(a);
+  return x;
+}
+
+lval* builtin_op(lenv* e, lval* a, char* op) {
+  
+  for (int i = 0; i < a->count; i++) {
+    LASSERT_TYPE(op, a, i, LVAL_NUM);
+  }
+  
+  lval* x = lval_pop(a, 0);
+  
+  if ((strcmp(op, "-") == 0) && a->count == 0) {
+    x->num = -x->num;
+  }
+  
+  while (a->count > 0) {  
+    lval* y = lval_pop(a, 0);
+    
+    if (strcmp(op, "+") == 0) { x->num += y->num; }
+    if (strcmp(op, "-") == 0) { x->num -= y->num; }
+    if (strcmp(op, "*") == 0) { x->num *= y->num; }
+    if (strcmp(op, "/") == 0) {
+      if (y->num == 0) {
+        lval_del(x); lval_del(y);
+        x = lval_err("Division By Zero.");
+        break;
+      }
+      x->num /= y->num;
+    }
+    
+    lval_del(y);
+  }
+  
+  lval_del(a);
+  return x;
+}
+
+lval* builtin_add(lenv* e, lval* a) {
+  return builtin_op(e, a, "+");
+}
+
+lval* builtin_sub(lenv* e, lval* a) {
+  return builtin_op(e, a, "-");
+}
+
+lval* builtin_mul(lenv* e, lval* a) {
+  return builtin_op(e, a, "*");
+}
+
+lval* builtin_div(lenv* e, lval* a) {
+  return builtin_op(e, a, "/");
+}
+
+lval* builtin_def(lenv* e, lval* a) {
+
+  LASSERT_TYPE("def", a, 0, LVAL_QEXPR);
+  
+  /* First argument is symbol list */
+  lval* syms = a->cell[0];
+  
+  /* Ensure all elements of first list are symbols */
+  for (int i = 0; i < syms->count; i++) {
+    LASSERT(a, (syms->cell[i]->type == LVAL_SYM),
+      "Function 'def' cannot define non-symbol. "
+      "Got %s, Expected %s.",
+      ltype_name(syms->cell[i]->type), ltype_name(LVAL_SYM));
+  }
+  
+  /* Check correct number of symbols and values */
+  LASSERT(a, (syms->count == a->count-1),
+    "Function 'def' passed too many arguments for symbols. "
+    "Got %i, Expected %i.",
+    syms->count, a->count-1);
+  
+  /* Assign copies of values to symbols */
+  for (int i = 0; i < syms->count; i++) {
+    lenv_put(e, syms->cell[i], a->cell[i+1]);
+  }
+  
+  lval_del(a);
+  return lval_sexpr();
+}
+
+void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
+  lval* k = lval_sym(name);
+  lval* v = lval_fun(func);
+  lenv_put(e, k, v);
+  lval_del(k); lval_del(v);
+}
+
+void lenv_add_builtins(lenv* e) {
+  /* Variable Functions */
+  lenv_add_builtin(e, "def", builtin_def);
+  
+  /* List Functions */
+  lenv_add_builtin(e, "list", builtin_list);
+  lenv_add_builtin(e, "head", builtin_head);
+  lenv_add_builtin(e, "tail", builtin_tail);
+  lenv_add_builtin(e, "eval", builtin_eval);
+  lenv_add_builtin(e, "join", builtin_join);
+  
+  /* Mathematical Functions */
+  lenv_add_builtin(e, "+", builtin_add);
+  lenv_add_builtin(e, "-", builtin_sub);
+  lenv_add_builtin(e, "*", builtin_mul);
+  lenv_add_builtin(e, "/", builtin_div);
+}
+
+/* Evaluation */
+
+lval* lval_eval_sexpr(lenv* e, lval* v) {
+  
+  for (int i = 0; i < v->count; i++) {
+    v->cell[i] = lval_eval(e, v->cell[i]);
+  }
+  
+  for (int i = 0; i < v->count; i++) {
+    if (v->cell[i]->type == LVAL_ERR) { return lval_take(v, i); }
+  }
+  
+  if (v->count == 0) { return v; }  
+  if (v->count == 1) { return lval_take(v, 0); }
+  
+  /* Ensure first element is a function after evaluation */
+  lval* f = lval_pop(v, 0);
+  if (f->type != LVAL_FUN) {
+    lval* err = lval_err(
+      "S-Expression starts with incorrect type. "
+      "Got %s, Expected %s.",
+      ltype_name(f->type), ltype_name(LVAL_FUN));
+    lval_del(f); lval_del(v);
+    return err;
+  }
+  
+  /* If so call function to get result */
+  lval* result = f->fun(e, v);
+  lval_del(f);
+  return result;
+}
+
+lval* lval_eval(lenv* e, lval* v) {
+  if (v->type == LVAL_SYM) {
+    lval* x = lenv_get(e, v);
+    lval_del(v);
+    return x;
+  }
+  if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(e, v); }
+  return v;
+}
+
+/* Reading */
+
+lval* lval_read_num(mpc_ast_t* t) {
+  errno = 0;
+  long x = strtol(t->contents, NULL, 10);
+  return errno != ERANGE ? lval_num(x) : lval_err("Invalid Number.");
+}
+
+lval* lval_read(mpc_ast_t* t) {
+  
+  if (strstr(t->tag, "number")) { return lval_read_num(t); }
+  if (strstr(t->tag, "symbol")) { return lval_sym(t->contents); }
+  
+  lval* x = NULL;
+  if (strcmp(t->tag, ">") == 0) { x = lval_sexpr(); } 
+  if (strstr(t->tag, "sexpr"))  { x = lval_sexpr(); }
+  if (strstr(t->tag, "qexpr"))  { x = lval_qexpr(); }
+  
+  for (int i = 0; i < t->children_num; i++) {
+    if (strcmp(t->children[i]->contents, "(") == 0) { continue; }
+    if (strcmp(t->children[i]->contents, ")") == 0) { continue; }
+    if (strcmp(t->children[i]->contents, "}") == 0) { continue; }
+    if (strcmp(t->children[i]->contents, "{") == 0) { continue; }
+    if (strcmp(t->children[i]->tag,  "regex") == 0) { continue; }
+    x = lval_add(x, lval_read(t->children[i]));
+  }
+  
+  return x;
+}
+
+/* Main */
+
+int main(int argc, char** argv) {
+  
+  mpc_parser_t* Number = mpc_new("number");
+  mpc_parser_t* Symbol = mpc_new("symbol");
+  mpc_parser_t* Sexpr  = mpc_new("sexpr");
+  mpc_parser_t* Qexpr  = mpc_new("qexpr");
+  mpc_parser_t* Expr   = mpc_new("expr");
+  mpc_parser_t* Lispy  = mpc_new("lispy");
+  
+  mpca_lang(MPCA_LANG_DEFAULT,
+    "                                                     \
+      number : /-?[0-9]+/ ;                               \
+      symbol : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&]+/ ;         \
+      sexpr  : '(' <expr>* ')' ;                          \
+      qexpr  : '{' <expr>* '}' ;                          \
+      expr   : <number> | <symbol> | <sexpr> | <qexpr> ;  \
+      lispy  : /^/ <expr>* /$/ ;                          \
+    ",
+    Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
+  
+  puts("Lispy Version 0.0.0.0.7");
+  puts("Press Ctrl+c to Exit\n");
+  
+  lenv* e = lenv_new();
+  lenv_add_builtins(e);
+  
+  while (1) {
+  
+    char* input = readline("lispy> ");
+    add_history(input);
+    
+    mpc_result_t r;
+    if (mpc_parse("<stdin>", input, Lispy, &r)) {
+      lval* x = lval_eval(e, lval_read(r.output));
+      lval_println(x);
+      lval_del(x);
+      mpc_ast_delete(r.output);
+    } else {    
+      mpc_err_print(r.error);
+      mpc_err_delete(r.error);
+    }
+    
+    free(input);
+    
+  }
+  
+  lenv_del(e);
+  
+  mpc_cleanup(6, Number, Symbol, Sexpr, Qexpr, Expr, Lispy);
+  
+  return 0;
+}
+
+```
+## 课后作业
+- 创建一个宏（*Macro*）以便能够报告参数类型错误。
+- 创建一个宏（*Macro*）以便能够报告参数个数不匹配错误。
+- 创建一个宏（*Macro*）以便能够报告空表错误。
+- 更改内置printing函数用于打印函数的名字。
+- 写一个函数，打印出当前环境中所有的变量名。
+- 将一个内置变量重新定义一下。
+- 重新定义一个内置变量，专门用于处理错误。   › Change redefinition of one of the builtin variables to something different an error.
+- 建立正常退出函数，可以不使用Ctrl-c中止程序。
